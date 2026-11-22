@@ -6,12 +6,6 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
-    "newArchEnabled": true,
-    "splash": {
-      "image": "./assets/splash-icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#0b1220"
-    },
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "fr.vigironde.agent"
@@ -21,7 +15,6 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "package": "fr.vigironde.agent"
     },
@@ -50,7 +43,8 @@
           "cameraPermission": "La caméra sert à photographier les incidents.",
           "photosPermission": "Joindre des photos existantes à un incident."
         }
-      ]
+      ],
+      "expo-status-bar"
     ],
     "scheme": "vigironde",
     "experiments": {

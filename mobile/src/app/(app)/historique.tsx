@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { Badge, Card, colors, fmtDateTime, Label, Muted, Row } from '@/components/ui';
@@ -12,26 +12,31 @@ export default function Historique() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const [r, i] = await Promise.all([
-        api<RoundOut[]>('/rounds', { query: { limit: 30 } }),
-        api<Incident[]>('/incidents', { query: { limit: 20 } }),
-      ]);
-      setRounds(r);
-      setIncidents(i);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    let alive = true;
+    Promise.all([
+      api<RoundOut[]>('/rounds', { query: { limit: 30 } }),
+      api<Incident[]>('/incidents', { query: { limit: 20 } }),
+    ])
+      .then(([r, i]) => {
+        if (!alive) return;
+        setRounds(r);
+        setIncidents(i);
+        setError(null);
+      })
+      .catch((e) => alive && setError(e instanceof Error ? e.message : String(e)))
+      .finally(() => alive && setLoading(false));
+    return () => {
+      alive = false;
+    };
+  }, [reloadKey]);
+
+  const load = () => {
+    setLoading(true);
+    setReloadKey((k) => k + 1);
+  };
 
   return (
     <ScrollView

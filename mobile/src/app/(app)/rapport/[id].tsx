@@ -1,5 +1,5 @@
 import { useLocalSearchParams } from 'expo-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
 import MapView, { Marker, Polygon, Polyline, type LatLng } from 'react-native-maps';
 
@@ -18,29 +18,38 @@ export default function Rapport() {
   const [loading, setLoading] = useState(true);
   const map = useRef<MapView>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      await flush(); // la fin de ronde vient peut-être juste d'être enregistrée
-      setReport(await api<RoundReport>(`/rounds/${id}/report`));
-    } catch (e) {
-      const pending = outbox.get().ops.some((o) => o.path.includes(String(id)));
-      setError(
-        pending || (e instanceof ApiError && e.status === 404)
-          ? 'La ronde n’est pas encore arrivée au serveur (pas de réseau ?). Le rapport sera disponible après l’envoi.'
-          : e instanceof Error
-            ? e.message
-            : String(e),
-      );
-    } finally {
-      setLoading(false);
-    }
-  }, [id]);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    let alive = true;
+    flush() // la fin de ronde vient peut-être juste d'être enregistrée
+      .then(() => api<RoundReport>(`/rounds/${id}/report`))
+      .then((r) => {
+        if (!alive) return;
+        setReport(r);
+        setError(null);
+      })
+      .catch((e) => {
+        if (!alive) return;
+        const pending = outbox.get().ops.some((o) => o.path.includes(String(id)));
+        setError(
+          pending || (e instanceof ApiError && e.status === 404)
+            ? 'La ronde n’est pas encore arrivée au serveur (pas de réseau ?). Le rapport sera disponible après l’envoi.'
+            : e instanceof Error
+              ? e.message
+              : String(e),
+        );
+      })
+      .finally(() => alive && setLoading(false));
+    return () => {
+      alive = false;
+    };
+  }, [id, reloadKey]);
+
+  const load = () => {
+    setLoading(true);
+    setReloadKey((k) => k + 1);
+  };
 
   if (loading && !report) {
     return (

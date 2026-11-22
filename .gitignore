@@ -9,3 +9,5 @@ dist/
 .DS_Store
 uploads/
 docs/test-iphone.html
+IMG_*.png
+Capture d’écran*.png

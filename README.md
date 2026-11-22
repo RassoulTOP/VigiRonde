@@ -13,7 +13,7 @@ rédigés par IA, détection d'anomalies, tableau de bord analytique et planning
 |---|---|---|
 | API | FastAPI (Python 3.12), SQLAlchemy 2, PostgreSQL 16 + PostGIS | ✅ Phase 1 |
 | Données de démo | Générateur réaliste (Gironde, 60 jours, anomalies injectées) | ✅ Phase 1 |
-| Appli agent | React Native + Expo SDK 54 (TypeScript, Expo Router), GPS, scan QR, hors-ligne | ✅ Phase 2 |
+| Appli agent | React Native + Expo SDK 58 (TypeScript, Expo Router), GPS, scan QR, hors-ligne | ✅ Phase 2 |
 | Tableau de bord superviseur | React + carte | ⏳ Phase 3 |
 | IA & data | LLM (rapports), Isolation Forest (anomalies), OR-Tools (planning), prévisions | ⏳ Phase 4 |
 | Production | Sécurité, RGPD, migrations, publication stores | ⏳ Phase 5 |

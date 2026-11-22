@@ -93,8 +93,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const [token, setToken] = useState<string | null>(null);
   const [data, setData] = useState<Persisted>(EMPTY);
   const [refreshing, setRefreshing] = useState(false);
-  const dataRef = useRef(data);
-  dataRef.current = data;
+  const dataRef = useRef(data); // copie synchrone de `data`, tenue à jour par update()
 
   const update = useCallback((patch: Partial<Persisted>) => {
     const next = { ...dataRef.current, ...patch };
@@ -141,9 +140,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const refresh = useCallback(async () => {
+  /** Recharge vacation, site et parcours depuis le serveur (sans effet si hors-ligne). */
+  const sync = useCallback(async () => {
     if (!token) return;
-    setRefreshing(true);
     try {
       await flush();
       // Tant que des actions attendent d'être envoyées, la version du téléphone fait foi
@@ -191,14 +190,21 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     } catch (e) {
       if (!(e instanceof ApiError)) return; // hors-ligne : on garde l'état local
       throw e;
-    } finally {
-      setRefreshing(false);
     }
   }, [token, update]);
 
+  const refresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await sync();
+    } finally {
+      setRefreshing(false);
+    }
+  }, [sync]);
+
   useEffect(() => {
-    if (ready && token) void refresh().catch(() => undefined);
-  }, [ready, token, refresh]);
+    if (ready && token) void sync().catch(() => undefined);
+  }, [ready, token, sync]);
 
   const login = useCallback(
     async (email: string, password: string, apiUrl: string) => {

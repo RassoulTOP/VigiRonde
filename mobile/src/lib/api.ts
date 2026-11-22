@@ -16,8 +16,10 @@ let onUnauthorized: (() => void) | null = null;
 
 /** En développement, l'API tourne sur le même Mac que Metro (port 8000). */
 export function defaultApiUrl(): string {
-  const host = Constants.expoConfig?.hostUri?.split(':')[0];
-  return host ? `http://${host}:8000` : 'http://localhost:8000';
+  const hostUri = Constants.expoConfig?.hostUri; // « 192.168.1.10:8081 » ou « [2a01:…]:8081 » (IPv6)
+  if (!hostUri) return 'http://localhost:8000';
+  const host = hostUri.startsWith('[') ? hostUri.slice(0, hostUri.indexOf(']') + 1) : hostUri.split(':')[0];
+  return `http://${host}:8000`;
 }
 
 export function configureApi(opts: { baseUrl?: string; token?: string | null; onUnauthorized?: () => void }) {

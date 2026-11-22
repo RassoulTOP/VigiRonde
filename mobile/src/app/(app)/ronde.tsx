@@ -15,7 +15,7 @@ export default function Ronde() {
   const [code, setCode] = useState('');
   const [comment, setComment] = useState('');
   const [busy, setBusy] = useState(false);
-  const [now, setNow] = useState(Date.now());
+  const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 15000);

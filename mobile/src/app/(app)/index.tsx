@@ -10,7 +10,7 @@ import { useSession } from '@/lib/session';
 import { isTracking, onFix } from '@/lib/tracking';
 
 function useNow(intervalMs = 30000) {
-  const [now, setNow] = useState(Date.now());
+  const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), intervalMs);
     return () => clearInterval(t);
