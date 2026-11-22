@@ -136,6 +136,7 @@ class ShiftAction(BaseModel):
 
 # ---------- Rondes ----------
 class RoundStart(BaseModel):
+    id: uuid.UUID | None = None  # généré par l'appli (hors-ligne, renvoi idempotent)
     shift_id: uuid.UUID
     template_id: uuid.UUID
     position: GpsFix | None = None
@@ -143,6 +144,7 @@ class RoundStart(BaseModel):
 
 
 class ScanIn(BaseModel):
+    id: uuid.UUID | None = None  # généré par l'appli (renvoi idempotent)
     code: str
     method: ScanMethod = ScanMethod.qr
     position: GpsFix | None = None
@@ -223,6 +225,7 @@ class PositionBatch(BaseModel):
 
 # ---------- Incidents ----------
 class IncidentIn(BaseModel):
+    id: uuid.UUID | None = None  # généré par l'appli : permet d'envoyer les photos hors-ligne
     site_id: uuid.UUID
     shift_id: uuid.UUID | None = None
     round_id: uuid.UUID | None = None

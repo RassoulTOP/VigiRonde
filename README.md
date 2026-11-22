@@ -13,7 +13,7 @@ rédigés par IA, détection d'anomalies, tableau de bord analytique et planning
 |---|---|---|
 | API | FastAPI (Python 3.12), SQLAlchemy 2, PostgreSQL 16 + PostGIS | ✅ Phase 1 |
 | Données de démo | Générateur réaliste (Gironde, 60 jours, anomalies injectées) | ✅ Phase 1 |
-| Appli agent | React Native + Expo (TypeScript), GPS, scan QR, hors-ligne | ⏳ Phase 2 |
+| Appli agent | React Native + Expo SDK 54 (TypeScript, Expo Router), GPS, scan QR, hors-ligne | ✅ Phase 2 |
 | Tableau de bord superviseur | React + carte | ⏳ Phase 3 |
 | IA & data | LLM (rapports), Isolation Forest (anomalies), OR-Tools (planning), prévisions | ⏳ Phase 4 |
 | Production | Sécurité, RGPD, migrations, publication stores | ⏳ Phase 5 |
@@ -25,6 +25,14 @@ cp .env.example .env            # puis changer JWT_SECRET
 docker compose up -d --build    # base PostGIS (port 5433) + API (port 8000)
 docker exec vigironde-api python -m app.seed --reset   # données de démo
 docker exec vigironde-api python -m pytest -q          # tests
+docker exec vigironde-api python -m app.demo_shift     # vacation « à commencer » pour l'agent de démo
+docker exec vigironde-api python -m app.qr_sheet > docs/qr-codes-demo.html   # QR codes des points
+```
+
+Appli mobile (Expo Go sur iPhone / Android, même Wi-Fi que l'ordinateur) :
+
+```bash
+cd mobile && npm install && npx expo start      # puis scanner le QR code avec l'iPhone
 ```
 
 Documentation interactive de l'API : <http://localhost:8000/docs>
@@ -45,6 +53,19 @@ Comptes de démo (mot de passe `VigiRonde2026!`) :
   distance parcourue, trajet GPS (GeoJSON) et alertes automatiques
   (points manqués, scan à distance, ronde trop rapide ou trop longue, ordre non respecté, ronde interrompue).
 - **Incidents** : catégorie, gravité 1–5, position, photos / vidéos / audio, renvoi idempotent depuis le mode hors-ligne.
+
+## Appli agent (phase 2)
+
+- **Connexion** sécurisée (jeton dans le trousseau iOS / Keystore Android).
+- **Prise / fin de service** géolocalisée, avec contrôle immédiat « dans le périmètre du site ».
+- **Rondes** : parcours ordonné, prochain point mis en avant, **scan QR** (lampe torche pour la nuit),
+  saisie manuelle de secours, distance au point affichée et **scan à distance signalé** (anti-fraude).
+- **Suivi GPS** pendant le service uniquement (un point / 15 s ou 10 m), rattaché à la ronde.
+- **Incidents** : catégorie, gravité proposée automatiquement, description (dictée vocale), jusqu'à 6 photos.
+- **Rapport de ronde sur carte** : périmètre, trajet GPS, points contrôlés / à distance / manqués, alertes.
+- **Hors-ligne complet** : toutes les actions sont enregistrées sur le téléphone puis envoyées dans l'ordre ;
+  identifiants générés par l'appli → aucun doublon même après plusieurs renvois. Bandeau d'état de synchronisation.
+- Thème sombre (lisibilité de nuit, discrétion, batterie), retours haptiques.
 
 ## Modèle de données
 

@@ -72,14 +72,17 @@ def create_incident(db: DB, user: CurrentUser, body: IncidentIn):
     site = db.get(Site, body.site_id)
     if site is None or site.company_id != user.company_id:
         raise HTTPException(404, "Site introuvable")
-    if body.client_id:
+    existing = None
+    if body.id:
+        existing = db.get(Incident, body.id)
+    if existing is None and body.client_id:
         existing = db.scalar(select(Incident).where(Incident.client_id == body.client_id))
-        if existing:  # renvoi hors-ligne déjà reçu : idempotent
-            return incident_out(_load(db, user, existing.id))
+    if existing:  # renvoi hors-ligne déjà reçu : idempotent
+        return incident_out(_load(db, user, existing.id))
     if body.shift_id:
         get_shift_for(db, user, body.shift_id)
     i = Incident(
-        site_id=site.id, shift_id=body.shift_id, round_id=body.round_id, agent_id=user.id,
+        id=body.id or uuid.uuid4(), site_id=site.id, shift_id=body.shift_id, round_id=body.round_id, agent_id=user.id,
         occurred_at=body.occurred_at or datetime.now(UTC),
         location=point(body.position.lat, body.position.lon) if body.position else None,
         category=body.category, severity=body.severity, title=body.title,
@@ -105,8 +108,15 @@ def update_incident(db: DB, user: Manager, incident_id: uuid.UUID, body: Inciden
 
 
 @router.post("/{incident_id}/attachments", response_model=AttachmentOut, status_code=201)
-async def upload_attachment(db: DB, user: CurrentUser, incident_id: uuid.UUID, file: UploadFile):
+async def upload_attachment(
+    db: DB, user: CurrentUser, incident_id: uuid.UUID, file: UploadFile, attachment_id: uuid.UUID | None = None,
+):
+    """`attachment_id` (facultatif, généré par l'appli) rend le renvoi hors-ligne idempotent."""
     i = _load(db, user, incident_id)
+    if attachment_id and (existing := db.get(Attachment, attachment_id)):
+        if existing.incident_id != i.id:
+            raise HTTPException(409, "Identifiant de pièce jointe déjà utilisé")
+        return existing
     if file.content_type not in ALLOWED_TYPES:
         raise HTTPException(415, f"Type de fichier non accepté : {file.content_type}")
     data = await file.read(MAX_BYTES + 1)
@@ -114,7 +124,7 @@ async def upload_attachment(db: DB, user: CurrentUser, incident_id: uuid.UUID, f
         raise HTTPException(413, "Fichier trop volumineux (15 Mo max)")
     folder = os.path.join(get_settings().upload_dir, str(i.id))
     os.makedirs(folder, exist_ok=True)
-    att_id = uuid.uuid4()
+    att_id = attachment_id or uuid.uuid4()
     ext = os.path.splitext(file.filename or "")[1][:10]
     path = os.path.join(folder, f"{att_id}{ext}")
     with open(path, "wb") as f:

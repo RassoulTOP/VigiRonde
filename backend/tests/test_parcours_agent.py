@@ -1,6 +1,7 @@
 """Test de bout en bout du parcours principal : un agent prend son service,
 fait une ronde avec ses points de contrôle, déclare un incident, puis le
 superviseur consulte le rapport de ronde géolocalisé."""
+import uuid
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -101,11 +102,16 @@ def test_parcours_complet(client):
 
     # Ronde : points 1 et 3 scannés (3 trop loin), point 2 oublié
     t1 = t0 + timedelta(minutes=2)
-    rnd = client.post("/rounds", headers=agent, json={"shift_id": shift["id"], "template_id": tpl["id"], "at": t1.isoformat()}).json()
+    # Identifiants générés par l'appli : un renvoi (réseau coupé puis rétabli) ne crée pas de doublon
+    rnd_body = {"id": str(uuid.uuid4()), "shift_id": shift["id"], "template_id": tpl["id"], "at": t1.isoformat()}
+    rnd = client.post("/rounds", headers=agent, json=rnd_body).json()
+    assert rnd["id"] == rnd_body["id"]
+    assert client.post("/rounds", headers=agent, json=rnd_body).status_code == 201
     (c1, p1), (c2, p2), (c3, p3) = cps
-    s1 = client.post(f"/rounds/{rnd['id']}/scan", headers=agent, json={
-        "code": c1["code"], "position": {"lat": p1[0], "lon": p1[1], "accuracy_m": 5},
-        "at": (t1 + timedelta(minutes=2)).isoformat()}).json()
+    s1_body = {"id": str(uuid.uuid4()), "code": c1["code"], "position": {"lat": p1[0], "lon": p1[1], "accuracy_m": 5},
+               "at": (t1 + timedelta(minutes=2)).isoformat()}
+    s1 = client.post(f"/rounds/{rnd['id']}/scan", headers=agent, json=s1_body).json()
+    assert client.post(f"/rounds/{rnd['id']}/scan", headers=agent, json=s1_body).json()["id"] == s1["id"]
     assert s1["is_valid"] is True and s1["distance_m"] < 5
     far = offset(*p3, 200, 0)
     s3 = client.post(f"/rounds/{rnd['id']}/scan", headers=agent, json={
@@ -134,9 +140,12 @@ def test_parcours_complet(client):
                 "position": {"lat": p2[0], "lon": p2[1]}}
     inc = client.post("/incidents", headers=agent, json=inc_body).json()
     assert client.post("/incidents", headers=agent, json=inc_body).json()["id"] == inc["id"]
-    r = client.post(f"/incidents/{inc['id']}/attachments", headers=agent,
-                    files={"file": ("photo.jpg", b"\xff\xd8\xff fake jpeg", "image/jpeg")})
-    assert r.status_code == 201
+    att_id = str(uuid.uuid4())
+    for _ in range(2):
+        r = client.post(f"/incidents/{inc['id']}/attachments", headers=agent, params={"attachment_id": att_id},
+                        files={"file": ("photo.jpg", b"\xff\xd8\xff fake jpeg", "image/jpeg")})
+        assert r.status_code == 201 and r.json()["id"] == att_id
+    assert len(client.get(f"/incidents/{inc['id']}", headers=agent).json()["attachments"]) == 1
 
     # Rapport de ronde consulté par le superviseur
     rep = client.get(f"/rounds/{rnd['id']}/report", headers=chef).json()

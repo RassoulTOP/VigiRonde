@@ -1,0 +1,60 @@
+{
+  "expo": {
+    "name": "VigiRonde",
+    "slug": "vigironde",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0b1220"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "fr.vigironde.agent"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "edgeToEdgeEnabled": true,
+      "predictiveBackGestureEnabled": false,
+      "package": "fr.vigironde.agent"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "VigiRonde enregistre votre position uniquement pendant votre service, pour les rapports de ronde et votre sécurité."
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "La caméra sert à scanner les QR codes des points de contrôle.",
+          "recordAudioAndroid": false
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "La caméra sert à photographier les incidents.",
+          "photosPermission": "Joindre des photos existantes à un incident."
+        }
+      ]
+    ],
+    "scheme": "vigironde",
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
