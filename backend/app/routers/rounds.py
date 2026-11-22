@@ -22,6 +22,8 @@ from app.models import (
     ShiftStatus,
     User,
 )
+from app.journal import journal
+from app.models import JournalKind
 from app.routers.shifts import get_shift_for
 from app.schemas import (
     CheckpointReport,
@@ -105,6 +107,8 @@ def start_round(db: DB, user: CurrentUser, body: RoundStart):
         started_at=body.at or datetime.now(UTC),
     )
     db.add(r)
+    journal(db, site_id=shift.site_id, agent_id=shift.agent_id, shift_id=shift.id, kind=JournalKind.ronde,
+            text=f"Début de ronde « {tpl.name} »", at=r.started_at, ref_id=r.id)
     db.commit()
     return round_out(get_round_for(db, user, r.id))
 
@@ -153,6 +157,13 @@ def end_round(db: DB, user: CurrentUser, round_id: uuid.UUID, body: RoundEnd):
     r.ended_at = body.at or datetime.now(UTC)
     r.status = RoundStatus.interrompue if body.interrupted else RoundStatus.terminee
     r.comment = body.comment
+    tpl = db.get(RoundTemplate, r.template_id)
+    shift = db.get(Shift, r.shift_id)
+    done = len({sc.checkpoint_id for sc in r.scans} & set(tpl.checkpoint_ids))
+    journal(db, site_id=shift.site_id, agent_id=r.agent_id, shift_id=r.shift_id, kind=JournalKind.ronde,
+            text=f"{'Ronde interrompue' if body.interrupted else 'Fin de ronde'} « {tpl.name} » : "
+                 f"{done}/{len(tpl.checkpoint_ids)} points" + (f" — {body.comment}" if body.comment else ""),
+            at=r.ended_at, ref_id=r.id)
     db.commit()
     return round_out(get_round_for(db, user, r.id))
 

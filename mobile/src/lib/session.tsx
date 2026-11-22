@@ -63,6 +63,10 @@ export type NewIncident = {
   title: string;
   description: string;
   photos: { uri: string; mimeType?: string | null }[];
+  templateId?: string | null;
+  answers?: Record<string, unknown>;
+  /** Rapport déjà mis en forme (IA) et relu par l'agent ; sinon le serveur le rédige. */
+  reportAi?: string | null;
 };
 
 type Session = Persisted & {
@@ -352,6 +356,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         severity: inc.severity,
         title: inc.title,
         description_raw: inc.description,
+        template_id: inc.templateId ?? null,
+        answers: inc.answers ?? {},
+        report_ai: inc.reportAi ?? null,
       },
     });
     for (const [i, photo] of inc.photos.entries()) {

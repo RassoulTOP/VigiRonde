@@ -126,6 +126,8 @@ class ShiftOut(ORM):
     start_inside_perimeter: bool | None
     status: ShiftStatus
     notes: str | None
+    active_pause_id: uuid.UUID | None = None
+    active_pause_started_at: datetime | None = None
 
 
 class ShiftAction(BaseModel):
@@ -236,6 +238,9 @@ class IncidentIn(BaseModel):
     title: str = Field(min_length=3, max_length=200)
     description_raw: str = Field(min_length=3)
     client_id: str | None = None
+    template_id: uuid.UUID | None = None  # rapport à modèle
+    answers: dict = {}
+    report_ai: str | None = None  # rapport déjà mis en forme et relu par l'agent
 
 
 class IncidentUpdate(BaseModel):
@@ -267,6 +272,9 @@ class IncidentOut(ORM):
     title: str
     description_raw: str
     report_ai: str | None
+    template_id: uuid.UUID | None = None
+    report_category: str | None = None
+    answers: dict = {}
     status: IncidentStatus
     attachments: list[AttachmentOut] = []
 

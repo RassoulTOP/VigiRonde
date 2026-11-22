@@ -4,6 +4,7 @@ import { ActivityIndicator, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { colors } from '@/components/ui';
+import { PosteProvider } from '@/lib/poste';
 import { SessionProvider, useSession } from '@/lib/session';
 
 function RootStack() {
@@ -31,8 +32,10 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <SessionProvider>
-        <StatusBar style="light" />
-        <RootStack />
+        <PosteProvider>
+          <StatusBar style="light" />
+          <RootStack />
+        </PosteProvider>
       </SessionProvider>
     </SafeAreaProvider>
   );

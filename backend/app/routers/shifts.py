@@ -7,16 +7,21 @@ from sqlalchemy.orm import joinedload
 
 from app.deps import DB, CurrentUser, Manager
 from app.geo import is_inside, point
-from app.models import Role, Shift, ShiftStatus, User
+from app.journal import journal
+from app.models import JournalKind, Role, Shift, ShiftPause, ShiftStatus, User
 from app.schemas import ShiftAction, ShiftIn, ShiftOut
 
 router = APIRouter(prefix="/shifts", tags=["vacations"])
 
 
-def shift_out(s: Shift) -> ShiftOut:
+def shift_out(s: Shift, db=None) -> ShiftOut:
     out = ShiftOut.model_validate(s)
     out.site_name = s.site.name if s.site else None
     out.agent_name = s.agent.full_name if s.agent else None
+    if db is not None and s.status == ShiftStatus.en_cours:
+        p = db.scalar(select(ShiftPause).where(ShiftPause.shift_id == s.id, ShiftPause.ended_at.is_(None)))
+        if p:
+            out.active_pause_id, out.active_pause_started_at = p.id, p.started_at
     return out
 
 
@@ -76,7 +81,7 @@ def current_shift(db: DB, user: CurrentUser):
         select(Shift).where(Shift.agent_id == user.id, Shift.status == ShiftStatus.en_cours)
         .options(joinedload(Shift.site), joinedload(Shift.agent))
     )
-    return shift_out(s) if s else None
+    return shift_out(s, db) if s else None
 
 
 @router.post("/{shift_id}/start", response_model=ShiftOut)
@@ -91,6 +96,9 @@ def start_shift(db: DB, user: CurrentUser, shift_id: uuid.UUID, body: ShiftActio
     s.status = ShiftStatus.en_cours
     if body.notes:
         s.notes = body.notes
+    where = {True: " (dans le périmètre)", False: " — HORS du périmètre du site", None: " (sans position GPS)"}
+    journal(db, site_id=s.site_id, agent_id=s.agent_id, shift_id=s.id, kind=JournalKind.service,
+            text="Prise de service" + where[s.start_inside_perimeter], at=s.actual_start, location=s.start_location)
     db.commit()
     return shift_out(s)
 
@@ -106,5 +114,9 @@ def end_shift(db: DB, user: CurrentUser, shift_id: uuid.UUID, body: ShiftAction)
     if body.notes:
         s.notes = ((s.notes or "") + "\n" + body.notes).strip()
     s.status = ShiftStatus.terminee
+    for p in db.scalars(select(ShiftPause).where(ShiftPause.shift_id == s.id, ShiftPause.ended_at.is_(None))):
+        p.ended_at = s.actual_end  # pause oubliée : close avec la vacation
+    journal(db, site_id=s.site_id, agent_id=s.agent_id, shift_id=s.id, kind=JournalKind.service,
+            text="Fin de service", at=s.actual_end, location=s.end_location)
     db.commit()
     return shift_out(s)

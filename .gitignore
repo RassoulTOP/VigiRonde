@@ -11,3 +11,8 @@ uploads/
 docs/test-iphone.html
 IMG_*.png
 Capture d’écran*.png
+*.HEIC
+*.heic
+*.mov
+*.MOV
+mobile/IMG_*

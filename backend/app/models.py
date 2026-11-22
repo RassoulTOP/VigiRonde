@@ -20,7 +20,7 @@ from sqlalchemy import (
     Text,
     func,
 )
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
@@ -232,7 +232,11 @@ class Incident(TimestampMixin, Base):
     severity: Mapped[int] = mapped_column(Integer, default=2)  # 1 (faible) à 5 (critique)
     title: Mapped[str] = mapped_column(String(200))
     description_raw: Mapped[str] = mapped_column(Text)  # notes / dictée de l'agent
-    report_ai: Mapped[str | None] = mapped_column(Text)  # rapport rédigé par l'IA (phase 4)
+    report_ai: Mapped[str | None] = mapped_column(Text)  # rapport mis en forme (IA ou modèle)
+    # Rapport à modèle : type de rapport + réponses au formulaire
+    template_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("report_templates.id", ondelete="SET NULL"))
+    report_category: Mapped[str | None] = mapped_column(String(40))  # surete, securite, intervention…
+    answers: Mapped[dict] = mapped_column(JSONB, default=dict)
     status: Mapped[IncidentStatus] = mapped_column(_enum(IncidentStatus), default=IncidentStatus.ouvert)
     client_id: Mapped[str | None] = mapped_column(String(64), unique=True)
 
@@ -249,3 +253,165 @@ class Attachment(TimestampMixin, Base):
     content_type: Mapped[str] = mapped_column(String(100))
     path: Mapped[str] = mapped_column(String(500))
     size_bytes: Mapped[int] = mapped_column(Integer)
+
+
+# ======================================================================
+# Phase 2 bis : rapports à modèles, main courante, PTI, consignes, clés,
+# visiteurs, pauses (fonctions inspirées du terrain).
+# ======================================================================
+class ReportTemplate(TimestampMixin, Base):
+    """Modèle de rapport (« Anomalie ronde », « Prise en compte de véhicule »…) avec son formulaire."""
+
+    __tablename__ = "report_templates"
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
+    company_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(200))
+    category: Mapped[str] = mapped_column(String(40))  # surete | securite | intervention | etat_des_lieux | technique
+    incident_category: Mapped[IncidentCategory] = mapped_column(_enum(IncidentCategory), default=IncidentCategory.autre)
+    default_severity: Mapped[int] = mapped_column(Integer, default=2)
+    icon: Mapped[str | None] = mapped_column(String(8))
+    # [{key, label, type: text|textarea|number|select|multiselect|boolean|time, options?, required?, help?}]
+    fields: Mapped[list] = mapped_column(JSONB, default=list)
+    site_ids: Mapped[list[uuid.UUID]] = mapped_column(ARRAY(UUID(as_uuid=True)), default=list)  # vide = tous
+    order_index: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class JournalKind(str, enum.Enum):
+    service = "service"
+    ronde = "ronde"
+    rapport = "rapport"
+    evenement = "evenement"
+    note = "note"
+    pause = "pause"
+    clef = "clef"
+    visiteur = "visiteur"
+    consigne = "consigne"
+    alerte = "alerte"
+
+
+class JournalEntry(TimestampMixin, Base):
+    """Main courante : tout ce qui se passe pendant la vacation, horodaté et géolocalisé."""
+
+    __tablename__ = "journal"
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
+    site_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), index=True)
+    shift_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("shifts.id", ondelete="SET NULL"), index=True)
+    agent_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    kind: Mapped[JournalKind] = mapped_column(_enum(JournalKind), default=JournalKind.note)
+    text: Mapped[str] = mapped_column(Text)
+    location = mapped_column(Geometry("POINT", srid=4326), nullable=True)
+    ref_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))  # ronde, rapport, visite…
+
+    agent: Mapped[User] = relationship()
+
+
+class AlertKind(str, enum.Enum):
+    sos = "sos"
+    immobilite = "immobilite"
+    chute = "chute"
+    test = "test"
+
+
+class AlertStatus(str, enum.Enum):
+    active = "active"
+    prise_en_charge = "prise_en_charge"
+    annulee = "annulee"
+    close = "close"
+
+
+class Alert(TimestampMixin, Base):
+    """Alerte PTI / DATI (protection du travailleur isolé)."""
+
+    __tablename__ = "alerts"
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
+    agent_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    shift_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("shifts.id", ondelete="SET NULL"))
+    site_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("sites.id", ondelete="SET NULL"))
+    kind: Mapped[AlertKind] = mapped_column(_enum(AlertKind))
+    status: Mapped[AlertStatus] = mapped_column(_enum(AlertStatus), default=AlertStatus.active, index=True)
+    triggered_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    location = mapped_column(Geometry("POINT", srid=4326), nullable=True)
+    accuracy_m: Mapped[float | None] = mapped_column(Float)
+    handled_by_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    handled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    note: Mapped[str | None] = mapped_column(Text)
+
+    agent: Mapped[User] = relationship(foreign_keys=[agent_id])
+    site: Mapped[Site | None] = relationship()
+
+
+class Instruction(TimestampMixin, Base):
+    """Consigne de site (permanente ou temporaire), à lire et valider par l'agent."""
+
+    __tablename__ = "instructions"
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
+    site_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), index=True)
+    title: Mapped[str] = mapped_column(String(200))
+    body: Mapped[str] = mapped_column(Text)
+    important: Mapped[bool] = mapped_column(Boolean, default=False)
+    valid_from: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    valid_to: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    author_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+
+
+class InstructionAck(Base):
+    __tablename__ = "instruction_acks"
+    instruction_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("instructions.id", ondelete="CASCADE"), primary_key=True
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    acked_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class SiteKey(TimestampMixin, Base):
+    """Clé ou badge confié au poste de garde."""
+
+    __tablename__ = "site_keys"
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
+    site_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), index=True)
+    label: Mapped[str] = mapped_column(String(200))
+    code: Mapped[str] = mapped_column(String(64), unique=True)  # QR / étiquette du trousseau
+    location_hint: Mapped[str | None] = mapped_column(String(200))  # où elle est rangée
+
+    movements: Mapped[list["KeyMovement"]] = relationship(order_by="KeyMovement.at", cascade="all, delete-orphan")
+
+
+class KeyMovement(TimestampMixin, Base):
+    __tablename__ = "key_movements"
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
+    key_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("site_keys.id", ondelete="CASCADE"), index=True)
+    agent_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    shift_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("shifts.id", ondelete="SET NULL"))
+    action: Mapped[str] = mapped_column(String(10))  # sortie | retour
+    holder_name: Mapped[str] = mapped_column(String(200))  # à qui la clé est remise / qui la rend
+    holder_company: Mapped[str | None] = mapped_column(String(200))
+    at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    note: Mapped[str | None] = mapped_column(Text)
+
+
+class Visit(TimestampMixin, Base):
+    """Registre des visiteurs et véhicules."""
+
+    __tablename__ = "visits"
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
+    site_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), index=True)
+    shift_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("shifts.id", ondelete="SET NULL"))
+    agent_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    visitor_name: Mapped[str] = mapped_column(String(200))
+    company: Mapped[str | None] = mapped_column(String(200))
+    reason: Mapped[str | None] = mapped_column(String(300))
+    host_name: Mapped[str | None] = mapped_column(String(200))  # personne visitée
+    vehicle_plate: Mapped[str | None] = mapped_column(String(20))
+    badge_number: Mapped[str | None] = mapped_column(String(40))
+    arrived_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    left_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class ShiftPause(TimestampMixin, Base):
+    __tablename__ = "shift_pauses"
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
+    shift_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("shifts.id", ondelete="CASCADE"), index=True)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

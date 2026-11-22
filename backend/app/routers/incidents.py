@@ -2,7 +2,7 @@ import os
 import uuid
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, HTTPException, UploadFile
+from fastapi import APIRouter, BackgroundTasks, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from sqlalchemy import select
 from sqlalchemy.orm import joinedload, selectinload
@@ -10,7 +10,11 @@ from sqlalchemy.orm import joinedload, selectinload
 from app.config import get_settings
 from app.deps import DB, CurrentUser, Manager
 from app.geo import point
-from app.models import Attachment, Incident, IncidentCategory, IncidentStatus, Role, Site
+from app.journal import journal
+from app.models import (
+    Attachment, Incident, IncidentCategory, IncidentStatus, JournalKind, ReportTemplate, Role, Site,
+)
+from app.routers.reports import fill_missing_report
 from app.routers.shifts import get_shift_for
 from app.schemas import AttachmentOut, IncidentIn, IncidentOut, IncidentUpdate
 
@@ -68,7 +72,7 @@ def list_incidents(
 
 
 @router.post("", response_model=IncidentOut, status_code=201)
-def create_incident(db: DB, user: CurrentUser, body: IncidentIn):
+def create_incident(db: DB, user: CurrentUser, body: IncidentIn, background: BackgroundTasks):
     site = db.get(Site, body.site_id)
     if site is None or site.company_id != user.company_id:
         raise HTTPException(404, "Site introuvable")
@@ -81,15 +85,26 @@ def create_incident(db: DB, user: CurrentUser, body: IncidentIn):
         return incident_out(_load(db, user, existing.id))
     if body.shift_id:
         get_shift_for(db, user, body.shift_id)
+    tpl = db.get(ReportTemplate, body.template_id) if body.template_id else None
+    if tpl is not None and tpl.company_id != user.company_id:
+        raise HTTPException(404, "Modèle de rapport introuvable")
     i = Incident(
         id=body.id or uuid.uuid4(), site_id=site.id, shift_id=body.shift_id, round_id=body.round_id, agent_id=user.id,
         occurred_at=body.occurred_at or datetime.now(UTC),
         location=point(body.position.lat, body.position.lon) if body.position else None,
         category=body.category, severity=body.severity, title=body.title,
         description_raw=body.description_raw, client_id=body.client_id,
+        template_id=tpl.id if tpl else None, report_category=tpl.category if tpl else None,
+        answers=body.answers, report_ai=body.report_ai,
     )
     db.add(i)
+    db.flush()
+    journal(db, site_id=site.id, agent_id=user.id, shift_id=body.shift_id, kind=JournalKind.rapport,
+            text=f"Rapport « {(tpl.name + ' : ') if tpl else ''}{body.title} » (gravité {body.severity}/5)",
+            at=i.occurred_at, location=i.location, ref_id=i.id)
     db.commit()
+    if not i.report_ai:
+        background.add_task(fill_missing_report, i.id, db.get_bind())
     return incident_out(_load(db, user, i.id))
 
 

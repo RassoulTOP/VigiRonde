@@ -67,6 +67,24 @@ Comptes de démo (mot de passe `VigiRonde2026!`) :
   identifiants générés par l'appli → aucun doublon même après plusieurs renvois. Bandeau d'état de synchronisation.
 - Thème sombre (lisibilité de nuit, discrétion, batterie), retours haptiques.
 
+## Fonctions de poste (inspirées du terrain)
+
+- **Accueil en tuiles** : Fin de service, Rondes, Rapports, Main courante, Évt simple, Consignes, Pause, Clés,
+  Visiteurs, SOS / PTI — avec badges (consignes non lues, clés sorties, visiteurs présents).
+- **Rapports à modèles** (11 modèles : anomalie ronde, prise en compte de véhicule, alarme incendie, intrusion,
+  alarme technique, vol, dégradation, personne suspecte, secours à personne, ouverture/fermeture, état des lieux),
+  classés Sûreté / Sécurité / Intervention / État des lieux, avec champs propres à chaque modèle.
+- **Rédaction du rapport par IA** (Claude) à partir des notes dictées par l'agent : rapport professionnel prêt à
+  transmettre, relu par l'agent avant envoi ; sans clé API, mise en forme structurée sans rien inventer.
+  Activer l'IA : ajouter `ANTHROPIC_API_KEY=...` dans `.env` puis `docker compose up -d`.
+- **Main courante** automatique (prise de service, rondes, rapports, clés, visiteurs, consignes, pauses, alertes)
+  + **Évènement simple** en un geste et notes libres.
+- **PTI / travailleur isolé** : bouton SOS (appui long), détection de chute et d'immobilité avec pré-alarme et
+  compte à rebours, test du PTI, suivi de la prise en charge par le PC sécurité. (Démonstration : un DATI
+  professionnel doit être certifié.)
+- **Consignes** de site (permanentes / temporaires) à valider « lu et compris », **registre des clés**,
+  **registre des visiteurs** (véhicule, badge), **pauses**.
+
 ## Modèle de données
 
 `companies` → `users` (rôles, qualifications CQP APS / SSIAP / SST) → `sites` (point + périmètre) →

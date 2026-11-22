@@ -53,6 +53,8 @@ export type Shift = {
   actual_end: string | null;
   start_inside_perimeter: boolean | null;
   status: ShiftStatus;
+  active_pause_id?: string | null;
+  active_pause_started_at?: string | null;
 };
 
 export type Scan = {
@@ -135,4 +137,93 @@ export type Incident = {
   title: string;
   status: 'ouvert' | 'en_traitement' | 'clos';
   attachments: { id: string }[];
+};
+
+// ---------- Fonctions de poste ----------
+export type FieldType = 'text' | 'textarea' | 'number' | 'select' | 'multiselect' | 'boolean' | 'time';
+
+export type TemplateField = {
+  key: string;
+  label: string;
+  type: FieldType;
+  options?: string[] | null;
+  required?: boolean;
+  help?: string | null;
+};
+
+export const REPORT_CATEGORIES = {
+  surete: 'Sûreté',
+  securite: 'Sécurité',
+  intervention: 'Intervention',
+  etat_des_lieux: 'État des lieux',
+  technique: 'Technique',
+} as const;
+export type ReportCategory = keyof typeof REPORT_CATEGORIES;
+
+export type ReportTemplate = {
+  id: string;
+  name: string;
+  category: ReportCategory;
+  incident_category: IncidentCategory;
+  default_severity: number;
+  icon: string | null;
+  fields: TemplateField[];
+};
+
+export type JournalKind =
+  | 'service' | 'ronde' | 'rapport' | 'evenement' | 'note' | 'pause' | 'clef' | 'visiteur' | 'consigne' | 'alerte';
+
+export type JournalEntry = {
+  id: string;
+  occurred_at: string;
+  kind: JournalKind;
+  text: string;
+  agent_name: string | null;
+  pending?: boolean;
+};
+
+export type QuickEvent = { icon: string; text: string };
+
+export type Instruction = {
+  id: string;
+  title: string;
+  body: string;
+  important: boolean;
+  valid_to: string | null;
+  created_at: string;
+  acked_at: string | null;
+};
+
+export type SiteKey = {
+  id: string;
+  label: string;
+  code: string;
+  location_hint: string | null;
+  is_out: boolean;
+  holder_name: string | null;
+  holder_company: string | null;
+  since: string | null;
+};
+
+export type Visit = {
+  id: string;
+  visitor_name: string;
+  company: string | null;
+  reason: string | null;
+  host_name: string | null;
+  vehicle_plate: string | null;
+  badge_number: string | null;
+  arrived_at: string;
+  left_at: string | null;
+};
+
+export type AlertKind = 'sos' | 'immobilite' | 'chute' | 'test';
+export type AlertStatus = 'active' | 'prise_en_charge' | 'annulee' | 'close';
+export type PtiAlert = {
+  id: string;
+  kind: AlertKind;
+  status: AlertStatus;
+  triggered_at: string;
+  handled_by_name?: string | null;
+  sent: boolean;
 };

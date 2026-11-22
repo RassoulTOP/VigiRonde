@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.db import init_db
-from app.routers import auth, incidents, positions, rounds, shifts, sites
+from app.routers import auth, incidents, positions, reports, rounds, shifts, sites, terrain
 
 
 @asynccontextmanager
@@ -15,7 +15,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="VigiRonde API",
-    version="0.1.0",
+    version="0.2.0",
     description=(
         "Gestion d'agents de sécurité : vacations géolocalisées, rondes à points de contrôle, "
         "rapports de ronde avec trajet GPS, incidents avec photos."
@@ -30,7 +30,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-for r in (auth.router, sites.router, shifts.router, rounds.router, positions.router, incidents.router):
+for r in (auth.router, sites.router, shifts.router, rounds.router, positions.router, incidents.router,
+          reports.router, terrain.router):
     app.include_router(r)
 
 
