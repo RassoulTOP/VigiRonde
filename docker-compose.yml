@@ -1,0 +1,41 @@
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    container_name: vigironde-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-vigironde}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-vigironde}
+      POSTGRES_DB: ${POSTGRES_DB:-vigironde}
+    ports:
+      - "5433:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+      - ./backend/init-test-db.sql:/docker-entrypoint-initdb.d/10-test-db.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-vigironde}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  api:
+    build: ./backend
+    container_name: vigironde-api
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-vigironde}:${POSTGRES_PASSWORD:-vigironde}@db:5432/${POSTGRES_DB:-vigironde}
+      TEST_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-vigironde}:${POSTGRES_PASSWORD:-vigironde}@db:5432/vigironde_test
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+      - uploads:/data/uploads
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+volumes:
+  db_data:
+  uploads:
